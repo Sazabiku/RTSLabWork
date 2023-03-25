@@ -20,6 +20,8 @@ import pygame
 from win32api import GetSystemMetrics
 import ctypes
 
+import MLP_driver
+
 ctypes.windll.user32.SetProcessDPIAware()
 
 # Constants
@@ -187,6 +189,8 @@ class Car:
 
 
 def run_simulation():
+
+    MLP_CLF = MLP_driver.trainMLP()
     
     # Empty Collections For Cars
     cars = []
@@ -260,11 +264,11 @@ def run_simulation():
                 car.update(game_map)
 
         if still_alive == 0:
-            print(Arrays_of_radars)
-            with open('inputs.npy', 'wb') as f:
-                np.save(f, np.array(Arrays_of_radars))
-            with open('outputs.npy', 'wb') as f:
-                np.save(f, np.array(Arrays_of_choices))
+            #print(Arrays_of_radars)
+            #with open('inputs.npy', 'wb') as f:
+                #np.save(f, np.array(Arrays_of_radars))
+            #with open('outputs.npy', 'wb') as f:
+                #np.save(f, np.array(Arrays_of_choices))
             print('bye...')
             break
 
