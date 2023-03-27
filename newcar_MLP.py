@@ -40,8 +40,8 @@ BORDER_COLOR = (255, 255, 255, 255) # Color To Crash on Hit
 
 current_generation = 0 # Generation counter
 
-Arrays_of_radars = list()
-Arrays_of_choices = list()
+#Arrays_of_radars = list()
+#Arrays_of_choices = list()
 
 class Car:
 
@@ -154,7 +154,7 @@ class Car:
             #print(radar)
             return_values[i] = int(radar[1] / 30)
         print(return_values)
-        Arrays_of_radars.append(return_values)
+        #Arrays_of_radars.append(return_values)
         #with open('test.npy', 'wb') as f:
             #np.save(f, np.array(return_values))
 
@@ -223,8 +223,9 @@ def run_simulation():
 
         # For Each Car Get The Acton It Takes
         for i, car in enumerate(cars):
-            output = car.get_data()
-            choice = output.index(max(output))
+            output = MLP_CLF.predict([car.get_data()])
+            choice = max(output)
+            print(choice)
             #print(output)
             #print(choice)
             
@@ -232,17 +233,16 @@ def run_simulation():
             #print(aid.get_action(car))
             
             # Добавлено ручное управление
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_LEFT]:
-                choice = 0
-            if keys[pygame.K_RIGHT]:
-                choice = 1
-            if keys[pygame.K_DOWN]:
-                choice = 2
-            if keys[pygame.K_UP]:
-                choice = 3
-            print(choice)
-            Arrays_of_choices.append(choice)
+            #keys = pygame.key.get_pressed()
+            ##   choice = 0
+            #if keys[pygame.K_RIGHT]:
+             #   choice = 1
+            #if keys[pygame.K_DOWN]:
+             #   choice = 2
+            #if keys[pygame.K_UP]:
+             #   choice = 3
+            #print(choice)
+            #Arrays_of_choices.append(choice)
             
                          
             if choice == 0:
