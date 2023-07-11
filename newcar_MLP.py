@@ -20,7 +20,9 @@ import pygame
 from win32api import GetSystemMetrics
 import ctypes
 
-import MLP_driver
+from sklearn.neural_network import MLPClassifier
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
 
 ctypes.windll.user32.SetProcessDPIAware()
 
@@ -43,16 +45,33 @@ current_generation = 0 # Generation counter
 #Arrays_of_radars = list()
 #Arrays_of_choices = list()
 
+data_set_x = np.load('inputs.npy')
+data_set_y = np.load('outputs.npy')
+
+
+
+class MLP_driver:
+
+    def trainMLP():
+        X_train, X_test, y_train, y_test = train_test_split(data_set_x, data_set_y, stratify=data_set_y, random_state=1)
+        clf = MLPClassifier(solver='lbfgs', alpha=1e-3, hidden_layer_sizes=(5,), random_state=1).fit(data_set_x, data_set_y) #(X_train, y_train)
+        #print(X_test)
+        print(clf.predict_proba(X_test[:1]))
+        #print(clf.predict(X_test))
+        return clf
+    
+
+
 class Car:
 
     def __init__(self):
         # Load Car Sprite and Rotate
-        self.sprite = pygame.image.load('car.png').convert() # Convert Speeds Up A Lot
+        self.sprite = pygame.image.load('FPV.png').convert() # Convert Speeds Up A Lot
         self.sprite = pygame.transform.scale(self.sprite, (CAR_SIZE_X, CAR_SIZE_Y))
         self.rotated_sprite = self.sprite 
 
         # self.position = [690, 740] # Starting Position
-        self.position = [830, 920] # Starting Position
+        self.position = [330, 940] # Starting Position
         self.angle = 0
         self.speed = 0
 
@@ -94,7 +113,7 @@ class Car:
         y = int(self.center[1] + math.sin(math.radians(360 - (self.angle + degree))) * length)
 
         # While We Don't Hit BORDER_COLOR AND length < 300 (just a max) -> go further and further
-        while not game_map.get_at((x, y)) == BORDER_COLOR and length < 300:
+        while not game_map.get_at((x, y)) == BORDER_COLOR and length < 600:
             length = length + 1
             x = int(self.center[0] + math.cos(math.radians(360 - (self.angle + degree))) * length)
             y = int(self.center[1] + math.sin(math.radians(360 - (self.angle + degree))) * length)
@@ -107,7 +126,7 @@ class Car:
         # Set The Speed To 20 For The First Time
         # Only When Having 4 Output Nodes With Speed Up and Down
         if not self.speed_set:
-            self.speed = 20
+            self.speed = 14
             self.speed_set = True
 
         # Get Rotated Sprite And Move Into The Right X-Direction
@@ -186,6 +205,9 @@ class Car:
         rotated_rectangle.center = rotated_image.get_rect().center
         rotated_image = rotated_image.subsurface(rotated_rectangle).copy()
         return rotated_image
+    
+    def get_posi(self):
+        return self.position
 
 
 def run_simulation():
@@ -197,8 +219,60 @@ def run_simulation():
 
     # Initialize PyGame And The Display
     pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
     # screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
+
+    gui_font = pygame.font.SysFont("Arial", 30)
+
+    class Button:
+        def __init__(self,text,width,height,pos,elevation):
+            #Core attributes 
+            self.pressed = False
+            self.elevation = elevation
+            self.dynamic_elecation = elevation
+            self.original_y_pos = pos[1]
+
+            # top rectangle 
+            self.top_rect = pygame.Rect(pos,(width,height))
+            self.top_color = '#567BED'
+
+            # bottom rectangle 
+            self.bottom_rect = pygame.Rect(pos,(width,height))
+            self.bottom_color = '#354B5E'
+            #text
+            self.text_surf = gui_font.render(text, True, '#171210')
+            self.text_rect = self.text_surf.get_rect(center = self.top_rect.center)
+
+        def draw(self):
+            # elevation logic 
+            self.top_rect.y = self.original_y_pos - self.dynamic_elecation
+            self.text_rect.center = self.top_rect.center 
+
+            self.bottom_rect.midtop = self.top_rect.midtop
+            self.bottom_rect.height = self.top_rect.height + self.dynamic_elecation
+
+            pygame.draw.rect(game_map,self.bottom_color, self.bottom_rect,border_radius = 12)
+            pygame.draw.rect(game_map,self.top_color, self.top_rect,border_radius = 12)
+            #pygame.draw.rect(game_map,self.top_color, self.text_rect,border_radius = 12)
+            game_map.blit(self.text_surf, self.text_rect)
+            self.check_click()
+
+        def check_click(self):
+            mouse_pos = pygame.mouse.get_pos()
+            if self.top_rect.collidepoint(mouse_pos):
+                self.top_color = '#D74B4B'
+                if pygame.mouse.get_pressed()[0]:
+                    self.dynamic_elecation = 0
+                    self.pressed = True
+                else:
+                    self.dynamic_elecation = self.elevation
+                    if self.pressed == True:
+                        print('clicked')
+                        self.pressed = False
+            else:
+                self.dynamic_elecation = self.elevation
+                self.top_color = '#567BED'
+
 
     cars.append(Car())
 
@@ -206,20 +280,58 @@ def run_simulation():
     # Font Settings & Loading Map
     clock = pygame.time.Clock()
     generation_font = pygame.font.SysFont("Arial", 30)
-    alive_font = pygame.font.SysFont("Arial", 20)
-    game_map = pygame.image.load('map.png').convert() # Convert Speeds Up A Lot
+    alive_font = pygame.font.SysFont("Arial", 24)
+    game_map = pygame.image.load('mapNEW.png').convert() # Convert Speeds Up A Lot
 
     global current_generation
     current_generation += 1
 
     # Simple Counter To Roughly Limit Time (Not Good Practice)
-    counter = 0
+
+    wind_speed = 4
+
+    timer_event = pygame.USEREVENT + 1
+    pygame.time.set_timer(timer_event, 5000)
+    timer_event_2 = pygame.USEREVENT + 2
+    pygame.time.set_timer(timer_event_2, 8000)
+
+    button1 = Button('LEFT',80,80,(30,600),5)
+    button2 = Button('RIGHT',80,80,(30,900),5)
+    button3 = Button('UP',80,80,(1820,600),5)
+    button4 = Button('DOWN',80,80,(1820,900),5)
+    button5 = Button('Запустить новый БПЛА (Y)',320,80,(1400,200),5)
+    button6 = Button('Потеря связи (L)',220,80,(200,200),5)
+    button7 = Button('ВЫХОД (ESC)',200,80,(30,30),5)
+
 
     while True:
+        button1.draw()
+        button2.draw()
+        button3.draw()
+        button4.draw()
+        button5.draw()
+        button6.draw()
+        button7.draw()
+        link_flag = True
         # Exit On Quit Event
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 sys.exit(0)
+            if event.type == timer_event:
+                if (wind_speed + np.random.randint(-1, 1) >= 0):
+                    wind_speed = wind_speed + np.random.randint(-1, 1)
+                if (wind_speed + np.random.randint(-1, 1) < 0):
+                    wind_speed = 0
+                if wind_speed >= 4:
+                    if(car.speed - wind_speed >= 5):
+                        car.speed = car.speed - wind_speed + 4
+                if wind_speed < 4:
+                    if(car.speed - wind_speed <= 25):
+                        car.speed = car.speed + wind_speed
+            if event.type == timer_event_2:
+                flag = np.random.randint(0, 1)
+                if flag == 1:
+                    link_flag = not(link_flag)
 
         # For Each Car Get The Acton It Takes
         for i, car in enumerate(cars):
@@ -232,16 +344,70 @@ def run_simulation():
             #aid = Fuzzy_Driver()
             #print(aid.get_action(car))
             
-            # Добавлено ручное управление
-            #keys = pygame.key.get_pressed()
-            ##   choice = 0
-            #if keys[pygame.K_RIGHT]:
-             #   choice = 1
-            #if keys[pygame.K_DOWN]:
-             #   choice = 2
-            #if keys[pygame.K_UP]:
-             #   choice = 3
-            #print(choice)
+            #Добавлено ручное управление
+            keys = pygame.key.get_pressed()
+            #choice = 0
+            if keys[pygame.K_LEFT]:
+                choice = 0
+            if keys[pygame.K_RIGHT]:
+                choice = 1
+            if keys[pygame.K_DOWN]:
+                choice = 2
+            if keys[pygame.K_UP]:
+                choice = 3
+            if button1.pressed:
+                choice = 0
+            if button2.pressed:
+                choice = 1
+            if button3.pressed:
+                choice = 3
+            if button4.pressed:
+                choice = 2 
+
+            if button6.pressed:
+                link_flag = not(link_flag)
+            if keys[pygame.K_l]:
+                link_flag = not(link_flag)
+
+            if link_flag == False:
+                if keys[pygame.K_LEFT]:
+                    output = MLP_CLF.predict([car.get_data()])
+                    choice = max(output)
+                if keys[pygame.K_RIGHT]:
+                    output = MLP_CLF.predict([car.get_data()])
+                    choice = max(output)
+                if keys[pygame.K_DOWN]:
+                    output = MLP_CLF.predict([car.get_data()])
+                    choice = max(output)
+                if keys[pygame.K_UP]:
+                    output = MLP_CLF.predict([car.get_data()])
+                    choice = max(output)
+                if button1.pressed:
+                    output = MLP_CLF.predict([car.get_data()])
+                    choice = max(output)
+                if button2.pressed:
+                    output = MLP_CLF.predict([car.get_data()])
+                    choice = max(output)
+                if button3.pressed:
+                    output = MLP_CLF.predict([car.get_data()])
+                    choice = max(output)
+                if button4.pressed:
+                    output = MLP_CLF.predict([car.get_data()])
+                    choice = max(output)
+                text = generation_font.render("СВЯЗЬ ПОТЕРЯНА", True, (255,0,0))
+                text_rect = text.get_rect()
+                text_rect.center = (990, 90)
+                pygame.draw.rect(game_map, (255, 255, 255), pygame.Rect((850, 50), (260, 70))) 
+                game_map.blit(text, text_rect) 
+            if link_flag == True:
+                text = generation_font.render("СВЯЗЬ ЕСТЬ", True, (0,255,0))
+                text_rect = text.get_rect()
+                text_rect.center = (990, 90)
+                pygame.draw.rect(game_map, (255, 255, 255), pygame.Rect((850, 50), (260, 70))) 
+                game_map.blit(text, text_rect)
+
+            print(choice)
+            print(link_flag)
             #Arrays_of_choices.append(choice)
             
                          
@@ -250,11 +416,13 @@ def run_simulation():
             elif choice == 1:
                 car.angle -= 10 # Right
             elif choice == 2:
-                if(car.speed - 2 >= 12):
-                    car.speed -= 2 # Slow Down
-            else:
-                car.speed += 2 # Speed Up
-        
+                if(car.speed - 1 >= 10):
+                    car.speed -= 1 # Slow Down
+            elif choice == 3:
+                if(car.speed + 1 <= 25):
+                    car.speed += 1 # Speed Up
+
+
         # Check If Car Is Still Alive
         # Increase Fitness If Yes And Break Loop If Not
         still_alive = 0
@@ -263,6 +431,16 @@ def run_simulation():
                 still_alive += 1
                 car.update(game_map)
 
+        if keys[pygame.K_ESCAPE]:
+            break
+        if button7.pressed:
+            break
+
+        if keys[pygame.K_y]:
+            run_simulation()
+        if button5.pressed:
+            run_simulation()
+
         if still_alive == 0:
             #print(Arrays_of_radars)
             #with open('inputs.npy', 'wb') as f:
@@ -270,7 +448,13 @@ def run_simulation():
             #with open('outputs.npy', 'wb') as f:
                 #np.save(f, np.array(Arrays_of_choices))
             print('bye...')
-            break
+            text = generation_font.render("СВЯЗЬ ПОТЕРЯНА", True, (255,0,0))
+            text_rect = text.get_rect()
+            text_rect.center = (990, 90)
+            pygame.draw.rect(game_map, (255, 255, 255), pygame.Rect((850, 50), (260, 70))) 
+            game_map.blit(text, text_rect) 
+
+            
 
         #counter += 1
         #if counter == 30 * 40: # Stop After About 20 Seconds
@@ -283,20 +467,51 @@ def run_simulation():
                 car.draw(screen)
         
         # Display Info
-        text = generation_font.render("Generation: " + str(current_generation), True, (0,0,0))
+        text = alive_font.render("Направление: ", True, (0,0,0))
         text_rect = text.get_rect()
-        text_rect.center = (900, 450)
+        text_rect.center = (70, 500)
+        screen.blit(text, text_rect)
+        text = alive_font.render("Влево", True, (0,0,0))
+        text_rect = text.get_rect()
+        text_rect.center = (70, 700)
+        screen.blit(text, text_rect)
+        text = alive_font.render("Вправо", True, (0,0,0))
+        text_rect = text.get_rect()
+        text_rect.center = (70, 1000)
+        screen.blit(text, text_rect)
+        text = alive_font.render("Скорость: ", True, (0,0,0))
+        text_rect = text.get_rect()
+        text_rect.center = (1850, 500)
+        screen.blit(text, text_rect)
+        text = alive_font.render("Выше", True, (0,0,0))
+        text_rect = text.get_rect()
+        text_rect.center = (1857, 700)
+        screen.blit(text, text_rect)
+        text = alive_font.render("Ниже", True, (0,0,0))
+        text_rect = text.get_rect()
+        text_rect.center = (1857, 1000)
+        screen.blit(text, text_rect)
+        text = generation_font.render("ИВТ-324Б Батуров Н.В.", True, (0,0,0))
+        text_rect = text.get_rect()
+        text_rect.center = (990, 30)
+        screen.blit(text, text_rect)
+        text = generation_font.render("Скорость БПЛА: " + str(car.speed) + ' m/s', True, (0,20,200))
+        text_rect = text.get_rect()
+        text_rect.center = (990, 350)
+        screen.blit(text, text_rect)
+        text = generation_font.render("Скорость Ветра: " + str(wind_speed) + ' m/s', True, (255,50,50))
+        text_rect = text.get_rect()
+        text_rect.center = (990, 380)
         screen.blit(text, text_rect)
 
-        text = alive_font.render("Still Alive: " + str(still_alive), True, (0, 0, 0))
+        text = generation_font.render("Позиция БПЛА: " + 'X: ' + str(round(car.get_posi()[0])) + ' Y: ' + str(round(car.get_posi()[1])), True, (10, 255, 10))
         text_rect = text.get_rect()
-        text_rect.center = (900, 490)
+        text_rect.center = (990, 320)
         screen.blit(text, text_rect)
 
         pygame.display.flip()
-        clock.tick(10) # ХХ FPS
+        clock.tick(20) # ХХ FPS
 
 if __name__ == "__main__":
     
-    # Load Config
     run_simulation()

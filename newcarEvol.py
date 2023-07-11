@@ -1,13 +1,5 @@
 # This Code is Heavily Inspired By The YouTuber: Cheesy AI
 # Code Changed, Optimized And Commented By: NeuralNine (Florian Dedov)
-# Code Changed By: Alexey Vulfin, Nikolai Baturov
-
-import copy
-from matplotlib import pyplot as plt
-plt.rc("figure", figsize=(10, 10))
-
-import numpy as np
-
 
 import math
 import random
@@ -16,6 +8,7 @@ import os
 
 import neat
 import pygame
+import numpy as np
 
 from win32api import GetSystemMetrics
 import ctypes
@@ -26,10 +19,11 @@ ctypes.windll.user32.SetProcessDPIAware()
 # WIDTH = 1600
 # HEIGHT = 880
 
+Arrays_of_radars = list()
+Arrays_of_choices = list()
 
 WIDTH = GetSystemMetrics(0)
 HEIGHT = GetSystemMetrics(1)
-
 
 CAR_SIZE_X = 60    
 CAR_SIZE_Y = 60
@@ -37,9 +31,6 @@ CAR_SIZE_Y = 60
 BORDER_COLOR = (255, 255, 255, 255) # Color To Crash on Hit
 
 current_generation = 0 # Generation counter
-
-Arrays_of_radars = list()
-Arrays_of_choices = list()
 
 class Car:
 
@@ -105,7 +96,7 @@ class Car:
         # Set The Speed To 20 For The First Time
         # Only When Having 4 Output Nodes With Speed Up and Down
         if not self.speed_set:
-            self.speed = 12
+            self.speed = 20
             self.speed_set = True
 
         # Get Rotated Sprite And Move Into The Right X-Direction
@@ -144,27 +135,14 @@ class Car:
         for d in range(-90, 120, 45):
             self.check_radar(d, game_map)
 
-    def get_data(self):
+    def get_data(self, generation):
         # Get Distances To Border
         radars = self.radars
         return_values = [0, 0, 0, 0, 0]
         for i, radar in enumerate(radars):
-            #print(radar)
             return_values[i] = int(radar[1] / 60)
-        print(return_values)
-        Arrays_of_radars.append(return_values)
-        #with open('test.npy', 'wb') as f:
-            #np.save(f, np.array(return_values))
-
-        return return_values
-        
-    def get_not_normal_data(self):
-        # Get Distances To Border
-        radars = self.radars
-        return_values = [0] * len(radars)
-        for i, radar in enumerate(radars):
-            return_values[i] = radar[1]
-
+        if generation == 25:
+            Arrays_of_radars.append(return_values)
         return return_values
 
     def is_alive(self):
@@ -186,17 +164,23 @@ class Car:
         return rotated_image
 
 
-def run_simulation():
+def run_simulation(genomes, config):
     
-    # Empty Collections For Cars
+    # Empty Collections For Nets and Cars
+    nets = []
     cars = []
 
     # Initialize PyGame And The Display
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.FULLSCREEN)
-    # screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
-    cars.append(Car())
+    # For All Genomes Passed Create A New Neural Network
+    for i, g in genomes:
+        net = neat.nn.FeedForwardNetwork.create(g, config)
+        nets.append(net)
+        g.fitness = 0
+
+        cars.append(Car())
 
     # Clock Settings
     # Font Settings & Loading Map
@@ -211,8 +195,6 @@ def run_simulation():
     # Simple Counter To Roughly Limit Time (Not Good Practice)
     counter = 0
 
-   
-
     while True:
         # Exit On Quit Event
         for event in pygame.event.get():
@@ -221,39 +203,19 @@ def run_simulation():
 
         # For Each Car Get The Acton It Takes
         for i, car in enumerate(cars):
-            output = car.get_data()
-            choice = 2
-            #choice = output.index(max(output))
-            #print(output)
-            #print(choice)
-            
-            #aid = Fuzzy_Driver()
-            #print(aid.get_action(car))
-            
-            # Добавлено ручное управление
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_LEFT]:
-                choice = 0
-            if keys[pygame.K_RIGHT]:
-                choice = 1
-            if keys[pygame.K_DOWN]:
-                choice = 2
-            if keys[pygame.K_UP]:
-                choice = 3
-            print(choice)
-            Arrays_of_choices.append(choice)
-
-                         
+            output = nets[i].activate(car.get_data(current_generation))
+            choice = output.index(max(output))
             if choice == 0:
                 car.angle += 10 # Left
             elif choice == 1:
                 car.angle -= 10 # Right
             elif choice == 2:
-                if(car.speed - 1 >= 10):
-                    car.speed -= 1 # Slow Down
-            elif choice == 3:
-                if(car.speed + 1 <= 20):
-                    car.speed += 1 # Speed Up
+                if(car.speed - 2 >= 12):
+                    car.speed -= 2 # Slow Down
+            else:
+                car.speed += 2 # Speed Up
+            if current_generation == 25:
+                Arrays_of_choices.append(choice)
         
         # Check If Car Is Still Alive
         # Increase Fitness If Yes And Break Loop If Not
@@ -262,22 +224,25 @@ def run_simulation():
             if car.is_alive():
                 still_alive += 1
                 car.update(game_map)
-
-        if keys[pygame.K_ESCAPE]:
-            still_alive = 0
+                genomes[i][1].fitness += car.get_reward()
 
         if still_alive == 0:
-            print(Arrays_of_radars)
-            with open('inputs2.npy', 'wb') as f:
-                np.save(f, np.array(Arrays_of_radars))
-            with open('outputs2.npy', 'wb') as f:
-                np.save(f, np.array(Arrays_of_choices))
-            print('bye...')
+            if current_generation == 20:
+                print(Arrays_of_radars)
+                with open('inputs4.npy', 'wb') as f:
+                    np.save(f, np.array(Arrays_of_radars))
+                with open('outputs4.npy', 'wb') as f:
+                    np.save(f, np.array(Arrays_of_choices))
             break
 
-        #counter += 1
-        #if counter == 30 * 40: # Stop After About 20 Seconds
-            #break
+        counter += 1
+        if counter == 30 * 20: # Stop After About 10 Seconds
+            break
+        
+        keys = pygame.key.get_pressed()
+
+        if keys[pygame.K_ESCAPE]:
+            return
 
         # Draw Map And All Cars That Are Alive
         screen.blit(game_map, (0, 0))
@@ -288,18 +253,32 @@ def run_simulation():
         # Display Info
         text = generation_font.render("Generation: " + str(current_generation), True, (0,0,0))
         text_rect = text.get_rect()
-        text_rect.center = (900, 450)
+        text_rect.center = (900, 300)
         screen.blit(text, text_rect)
 
         text = alive_font.render("Still Alive: " + str(still_alive), True, (0, 0, 0))
         text_rect = text.get_rect()
-        text_rect.center = (900, 490)
+        text_rect.center = (900, 350)
         screen.blit(text, text_rect)
 
         pygame.display.flip()
-        clock.tick(10) # ХХ FPS
+        clock.tick(60) # 60 FPS
 
 if __name__ == "__main__":
     
     # Load Config
-    run_simulation()
+    config_path = "./config.txt"
+    config = neat.config.Config(neat.DefaultGenome,
+                                neat.DefaultReproduction,
+                                neat.DefaultSpeciesSet,
+                                neat.DefaultStagnation,
+                                config_path)
+
+    # Create Population And Add Reporters
+    population = neat.Population(config)
+    population.add_reporter(neat.StdOutReporter(True))
+    stats = neat.StatisticsReporter()
+    population.add_reporter(stats)
+    
+    # Run Simulation For A Maximum of 1000 Generations
+    population.run(run_simulation, 30)

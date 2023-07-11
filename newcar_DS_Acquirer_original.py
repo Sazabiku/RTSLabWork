@@ -45,12 +45,12 @@ class Car:
 
     def __init__(self):
         # Load Car Sprite and Rotate
-        self.sprite = pygame.image.load('FPV.png').convert() # Convert Speeds Up A Lot
+        self.sprite = pygame.image.load('car.png').convert() # Convert Speeds Up A Lot
         self.sprite = pygame.transform.scale(self.sprite, (CAR_SIZE_X, CAR_SIZE_Y))
         self.rotated_sprite = self.sprite 
 
         # self.position = [690, 740] # Starting Position
-        self.position = [330, 940] # Starting Position
+        self.position = [830, 920] # Starting Position
         self.angle = 0
         self.speed = 0
 
@@ -92,7 +92,7 @@ class Car:
         y = int(self.center[1] + math.sin(math.radians(360 - (self.angle + degree))) * length)
 
         # While We Don't Hit BORDER_COLOR AND length < 300 (just a max) -> go further and further
-        while not game_map.get_at((x, y)) == BORDER_COLOR and length < 600:
+        while not game_map.get_at((x, y)) == BORDER_COLOR and length < 300:
             length = length + 1
             x = int(self.center[0] + math.cos(math.radians(360 - (self.angle + degree))) * length)
             y = int(self.center[1] + math.sin(math.radians(360 - (self.angle + degree))) * length)
@@ -105,7 +105,7 @@ class Car:
         # Set The Speed To 20 For The First Time
         # Only When Having 4 Output Nodes With Speed Up and Down
         if not self.speed_set:
-            self.speed = 12
+            self.speed = 20
             self.speed_set = True
 
         # Get Rotated Sprite And Move Into The Right X-Direction
@@ -150,7 +150,7 @@ class Car:
         return_values = [0, 0, 0, 0, 0]
         for i, radar in enumerate(radars):
             #print(radar)
-            return_values[i] = int(radar[1] / 60)
+            return_values[i] = int(radar[1] / 30)
         print(return_values)
         Arrays_of_radars.append(return_values)
         #with open('test.npy', 'wb') as f:
@@ -161,7 +161,7 @@ class Car:
     def get_not_normal_data(self):
         # Get Distances To Border
         radars = self.radars
-        return_values = [0] * len(radars)
+        return_values = [0, 0, 0, 0, 0]
         for i, radar in enumerate(radars):
             return_values[i] = radar[1]
 
@@ -203,15 +203,13 @@ def run_simulation():
     clock = pygame.time.Clock()
     generation_font = pygame.font.SysFont("Arial", 30)
     alive_font = pygame.font.SysFont("Arial", 20)
-    game_map = pygame.image.load('mapNEW.png').convert() # Convert Speeds Up A Lot
+    game_map = pygame.image.load('map.png').convert() # Convert Speeds Up A Lot
 
     global current_generation
     current_generation += 1
 
     # Simple Counter To Roughly Limit Time (Not Good Practice)
     counter = 0
-
-   
 
     while True:
         # Exit On Quit Event
@@ -222,8 +220,7 @@ def run_simulation():
         # For Each Car Get The Acton It Takes
         for i, car in enumerate(cars):
             output = car.get_data()
-            choice = 2
-            #choice = output.index(max(output))
+            choice = output.index(max(output))
             #print(output)
             #print(choice)
             
@@ -242,18 +239,17 @@ def run_simulation():
                 choice = 3
             print(choice)
             Arrays_of_choices.append(choice)
-
+            
                          
             if choice == 0:
                 car.angle += 10 # Left
             elif choice == 1:
                 car.angle -= 10 # Right
             elif choice == 2:
-                if(car.speed - 1 >= 10):
-                    car.speed -= 1 # Slow Down
-            elif choice == 3:
-                if(car.speed + 1 <= 20):
-                    car.speed += 1 # Speed Up
+                if(car.speed - 2 >= 12):
+                    car.speed -= 2 # Slow Down
+            else:
+                car.speed += 2 # Speed Up
         
         # Check If Car Is Still Alive
         # Increase Fitness If Yes And Break Loop If Not
@@ -263,14 +259,11 @@ def run_simulation():
                 still_alive += 1
                 car.update(game_map)
 
-        if keys[pygame.K_ESCAPE]:
-            still_alive = 0
-
         if still_alive == 0:
             print(Arrays_of_radars)
-            with open('inputs2.npy', 'wb') as f:
+            with open('inputs.npy', 'wb') as f:
                 np.save(f, np.array(Arrays_of_radars))
-            with open('outputs2.npy', 'wb') as f:
+            with open('outputs.npy', 'wb') as f:
                 np.save(f, np.array(Arrays_of_choices))
             print('bye...')
             break
